@@ -3,7 +3,6 @@ package com.programmermuda.crud.controllers;
 import com.programmermuda.crud.models.Product;
 import com.programmermuda.crud.models.ProductDTO;
 import com.programmermuda.crud.services.ProductRepository;
-import jakarta.validation.Path;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -11,15 +10,13 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Date;
@@ -87,6 +84,80 @@ public class ProductController {
         product.setImageFileName(storageFileName);
 
         productRepository.save(product);
+
+        return "redirect:/products";
+    }
+
+
+    @GetMapping("/edit")
+    public String showEditPage(Model model,
+                               @RequestParam int id){
+
+        try {
+            Product product = productRepository.findById(id).get();
+            model.addAttribute("product", product);
+
+            ProductDTO productDTO = new ProductDTO();
+            product.setName(product.getName());
+            product.setBrand(product.getBrand());
+            product.setCategory(product.getCategory());
+            product.setPrice(product.getPrice());
+            product.setDescription(product.getDescription());
+
+            model.addAttribute("productDTO", productDTO);
+        }catch (Exception e){
+            System.out.println("Exception : " + e.getMessage());
+            return "redirect:/products";
+        }
+
+        return "products/EditProduct";
+    }
+
+    @PostMapping("/edit")
+    public String updateProduct(Model model,
+                                @RequestParam int id,
+                                @Valid @ModelAttribute ProductDTO productDTO,
+                                BindingResult result){
+
+        try {
+            Product product = productRepository.findById(id).get();
+            model.addAttribute("product", product);
+            if (result.hasErrors()){
+                return "products/EditProduct";
+            }
+
+            if (!productDTO.getImageFile().isEmpty()){
+                // delete old image
+                String uploadDir = "public/images/";
+                Path oldImagePath = Paths.get(uploadDir + product.getImageFileName());
+
+                try {
+                    Files.delete(oldImagePath);
+                }catch (Exception e){
+                    System.out.println("Exception : " + e.getMessage());
+                }
+
+                // save new image file
+                MultipartFile image = productDTO.getImageFile();
+                Date createdAt = new Date();
+                String storageFileName = createdAt.getTime() + "_" + image.getOriginalFilename();
+
+                try(InputStream inputStream = image.getInputStream()){
+                    Files.copy(inputStream, Paths.get(uploadDir + storageFileName),
+                            StandardCopyOption.REPLACE_EXISTING);
+                }
+
+                product.setImageFileName(storageFileName);
+            }
+            product.setName(productDTO.getName());
+            product.setBrand(productDTO.getBrand());
+            product.setCategory(productDTO.getCategory());
+            product.setDescription(productDTO.getDescription());
+
+            productRepository.save(product);
+        }catch (Exception e){
+            System.out.println("Exception : " + e.getMessage());
+        }
 
         return "redirect:/products";
     }
